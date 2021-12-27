@@ -24,7 +24,8 @@ func newRouter() *router {
 }
 
 func genRouterKey(method string, path string) string {
-	return "/" + method + path
+	// 统一去除拖尾的 /
+	return "/" + method + strings.TrimRight(path, "/")
 }
 
 func splitPath(path string) []string {
@@ -63,13 +64,16 @@ func (r *router) getRoute(method string, path string) (*trieNode, map[string]str
 func (r *router) handle(ctx *Ctx) {
 	node, pathParam := r.getRoute(ctx.Method, ctx.Path)
 	if node == nil {
-		ctx.WriteText(http.StatusNotFound, "404 NOT FOUND")
-		return
-	}
-	if fn, ok := r.handlers[node.pattern]; ok {
-		ctx.pathParam = pathParam
-		fn(ctx)
+		ctx.handlers = append(ctx.handlers, func(ctx *Ctx) {
+			ctx.WriteText(http.StatusNotFound, "404 NOT FOUND")
+		})
 	} else {
-		ctx.WriteText(http.StatusNotFound, "404 NOT FOUND")
+		if fn, ok := r.handlers[node.pattern]; ok {
+			ctx.pathParam = pathParam
+			// 路由的handle放在中间件最后一位
+			ctx.handlers = append(ctx.handlers, fn)
+		}
 	}
+	// 启动中间件逻辑处理
+	ctx.Next()
 }

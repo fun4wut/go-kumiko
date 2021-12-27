@@ -7,16 +7,14 @@ import (
 type HandlerFn func(ctx *Ctx)
 
 type RouterGroup struct {
-	middlewares []HandlerFn
-	prefix      string
-	parent      *RouterGroup
-	top         *Kumiko
+	prefix string
+	top    *Kumiko
 }
 
 type Kumiko struct {
 	router       *router
-	*RouterGroup // 全局对象本身也有路由组能力
-	groups       []*RouterGroup
+	*RouterGroup             // 全局对象本身也有路由组能力
+	middlewares  []HandlerFn // 这里做个简化，中间件对所有路由都生效
 }
 
 func New() *Kumiko {
@@ -24,19 +22,15 @@ func New() *Kumiko {
 		router: newRouter(),
 	}
 	k.RouterGroup = &RouterGroup{top: k}
-	k.groups = []*RouterGroup{k.RouterGroup}
 	return k
 }
 
 func (g *RouterGroup) Group(prefix string) *RouterGroup {
 	top := g.top
-	newGroup := &RouterGroup{
+	return &RouterGroup{
 		prefix: g.prefix + prefix,
-		parent: g,
 		top:    top,
 	}
-	top.groups = append(top.groups, newGroup)
-	return newGroup
 }
 
 // 在路由组上去定义路由方法，这样全局对象本身也可以享受
@@ -52,9 +46,14 @@ func (g *RouterGroup) Post(path string, handler HandlerFn) {
 	g.addRoute("POST", path, handler)
 }
 
+func (k *Kumiko) Use(fns ...HandlerFn) {
+	k.middlewares = append(k.middlewares, fns...)
+}
+
 func (k *Kumiko) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	// 每次请求都构造一个上下文给handler使用
 	ctx := newCtx(writer, request)
+	ctx.handlers = k.middlewares
 	k.router.handle(ctx)
 }
 

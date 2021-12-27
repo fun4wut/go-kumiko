@@ -15,15 +15,27 @@ type Ctx struct {
 	pathParam  map[string]string
 	Method     string
 	StatusCode int
+	handlers   []HandlerFn
+	handlerIdx int
 }
 
 func newCtx(w http.ResponseWriter, req *http.Request) *Ctx {
 	return &Ctx{
-		Writer: w,
-		Req:    req,
-		Path:   req.URL.Path,
-		Method: req.Method,
+		Writer:     w,
+		Req:        req,
+		Path:       req.URL.Path,
+		Method:     req.Method,
+		handlerIdx: 0,
 	}
+}
+
+func (c *Ctx) Next() {
+	if c.handlerIdx >= len(c.handlers) {
+		return
+	}
+	fn := c.handlers[c.handlerIdx]
+	c.handlerIdx++
+	fn(c)
 }
 
 func (c *Ctx) GetPathParam(key string) (string, bool) {
