@@ -16,16 +16,16 @@ type Cache struct {
 	nBytes    int
 	ll        *list.List
 	cache     map[string]*list.Element
-	onRemoved func(key string, value Value)
+	onRemoved func(string, Value)
 }
 
-func New() *Cache {
+func New(maxBytes int, onRemoved func(string, Value)) *Cache {
 	return &Cache{
-		maxBytes:  1 << 10,
+		maxBytes:  maxBytes,
 		nBytes:    0,
 		ll:        list.New(),
 		cache:     map[string]*list.Element{},
-		onRemoved: nil,
+		onRemoved: onRemoved,
 	}
 }
 
