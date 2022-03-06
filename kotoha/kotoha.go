@@ -12,7 +12,7 @@ type Getter interface {
 type GetterFunc func(key string) ([]byte, error)
 
 func (f GetterFunc) Get(key string) ([]byte, error) {
-	return f.Get(key)
+	return f(key)
 }
 
 type Group struct {
@@ -26,7 +26,7 @@ var (
 	groups = make(map[string]*Group)
 )
 
-func NewGroup(name string, cacheBytes int, getter Getter) *Group {
+func AddGroup(name string, cacheBytes int, getter Getter) *Group {
 	mu.Lock()
 	defer mu.Unlock()
 	g := &Group{
