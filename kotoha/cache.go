@@ -5,6 +5,7 @@ import (
 	"sync"
 )
 
+// 并发安全的lru罢了
 type cache struct {
 	lru        *lru.Cache
 	mu         sync.Mutex
@@ -15,6 +16,7 @@ func (c *cache) add(key string, value ByteView) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.lru == nil {
+		// 懒加载
 		c.lru = lru.New(c.cacheBytes, nil)
 	}
 	c.lru.Set(key, value)

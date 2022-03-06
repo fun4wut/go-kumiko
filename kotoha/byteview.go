@@ -1,5 +1,6 @@
 package kotoha
 
+// ByteView 缓存值的抽象与封装
 type ByteView struct {
 	b []byte
 }

@@ -7,6 +7,7 @@ import (
 
 type FnHash func([]byte) int
 
+// Dict 一致性哈希算法 https://geektutu.com/post/geecache-day4.html
 type Dict struct {
 	fnHash   FnHash         // 哈希函数
 	replicas int            // 虚拟节点的扩展因子
@@ -14,7 +15,7 @@ type Dict struct {
 	hashDict map[int]string // vnode的hash -> 真实node的name
 }
 
-func New(fnHash FnHash, replicas int) *Dict {
+func New(replicas int, fnHash FnHash) *Dict {
 	return &Dict{
 		fnHash:   fnHash,
 		replicas: replicas,
@@ -27,6 +28,7 @@ func New(fnHash FnHash, replicas int) *Dict {
 func (d Dict) Add(keys ...string) {
 	for _, key := range keys {
 		for i := 0; i < d.replicas; i++ {
+			// key{i}
 			hashRes := d.fnHash([]byte(key + strconv.Itoa(i)))
 			d.keys = append(d.keys, hashRes)
 			d.hashDict[hashRes] = key
@@ -55,5 +57,6 @@ func (d Dict) Get(key string) string {
 		// 找到最靠近的一个节点
 		return d.keys[i] >= hashRes
 	})
+	// 如果search没找到，会返回n，取个模即可做到环的效果
 	return d.hashDict[d.keys[idx%len(d.keys)]]
 }
