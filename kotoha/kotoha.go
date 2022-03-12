@@ -1,6 +1,7 @@
 package kotoha
 
 import (
+	"awesomeProject/kotoha/singleflight"
 	"log"
 	"sync"
 )
@@ -19,13 +20,15 @@ func (f GetterFunc) Get(key string) ([]byte, error) {
 // Group 最核心的数据结构，负责与用户的交互，并且控制缓存值存储和获取的流程。
 type Group struct {
 	name       string
-	getter     Getter     // 拿不到缓存值，最终的获取值的callback
-	mainCache  cache      // 本地缓存
-	peerPicker PeerPicker // 获取正确的远程节点
+	getter     Getter                         // 拿不到缓存值，最终的获取值的callback
+	mainCache  cache                          // 本地缓存
+	peerPicker PeerPicker                     // 获取正确的远程节点
+	loader     *singleflight.Flight[ByteView] // 确保并发取同一个key，不会重复请求
 }
 
 var (
-	mu     sync.RWMutex
+	mu sync.RWMutex
+	// 一个group可以理解为一个表，多个group就是一个数据库了
 	groups = make(map[string]*Group)
 )
 
@@ -42,6 +45,7 @@ func AddGroup(name string, cacheBytes int, getter Getter) *Group {
 		mainCache: cache{
 			cacheBytes: cacheBytes,
 		},
+		loader: &singleflight.Flight[ByteView]{},
 	}
 	groups[name] = g
 	return g
@@ -68,14 +72,20 @@ func (g *Group) Get(key string) (ByteView, error) {
 }
 
 func (g *Group) load(key string) (ByteView, error) {
-	if g.peerPicker != nil {
-		if peer, ok := g.peerPicker.PickPeer(key); ok {
-			if val, err := g.loadFromRemote(peer, key); err == nil {
-				return val, nil
+	view, err := g.loader.Do(key, func() (ByteView, error) {
+		if g.peerPicker != nil {
+			if peer, ok := g.peerPicker.PickPeer(key); ok {
+				if val, err := g.loadFromRemote(peer, key); err == nil {
+					return val, nil
+				}
 			}
 		}
+		return g.loadFromLocal(key)
+	})
+	if err == nil {
+		return view, nil
 	}
-	return g.loadFromLocal(key)
+	return ByteView{}, nil
 }
 
 func (g *Group) loadFromRemote(peer PeerGetter, key string) (ByteView, error) {
@@ -83,7 +93,7 @@ func (g *Group) loadFromRemote(peer PeerGetter, key string) (ByteView, error) {
 	if err != nil {
 		return ByteView{}, err
 	}
-	log.Println("[Remote] hit!")
+	log.Printf("[Remote] hit!")
 	return ByteView{b: bytes}, nil
 }
 
@@ -94,6 +104,6 @@ func (g *Group) loadFromLocal(key string) (ByteView, error) {
 	}
 	value := ByteView{b: cloneBytes(bytes)}
 	g.mainCache.add(key, value)
-	log.Println("[Local] hit!")
+	log.Println("[Local DB] hit!")
 	return value, nil
 }

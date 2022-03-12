@@ -26,8 +26,8 @@ func NewHttpPool(self string) *HttpPool {
 	}
 }
 
-// Set 添加远程节点
-func (p *HttpPool) Set(peers ...string) {
+// AddPeer 添加远程节点
+func (p *HttpPool) AddPeer(peers ...string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.peers = hash.New(3, nil)
@@ -44,7 +44,7 @@ func (p *HttpPool) Set(peers ...string) {
 func (p *HttpPool) PickPeer(key string) (PeerGetter, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	// 如果 peer == self，那就如密传如密了，降级到本地callback
+	// 如果 peer == self，那就如密传如密了，直接降级到本地callback
 	if peer := p.peers.Get(key); peer != "" && peer != p.Self {
 		log.Printf("Pick peer %s", peer)
 		return p.httpGetters[peer], true
@@ -57,7 +57,6 @@ var _ PeerPicker = (*HttpPool)(nil)
 // HandleGet 处理过来的http请求
 func HandleGet() kumiko.HandlerFn {
 	return func(ctx *kumiko.Ctx) {
-		log.Println("Hit path")
 		groupName, _ := ctx.GetPathParam("groupname")
 		key, _ := ctx.GetPathParam("key")
 		group := GetGroup(groupName)
